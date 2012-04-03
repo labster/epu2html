@@ -1,0 +1,46 @@
+epu2html
+
+Provides a utility for converting text format fanfiction from Eyrie Productions Unlimited (EPU) to xhtml, for use in ebooks.  An additional utility (buildepubcontainer.pl) is provided to build an ePub style ebook.
+
+Makes a lot of inferences from the structure and spacing of the file, so it's not designed to be a general-purpose text-to-html translator.  But since Gryphon et al.'s files are pretty regular, it does a pretty good job that only requires a couple minutes or so of human intervention.  Since it's not a natural language parser or anything, it has to guess about the titles of the work and such.
+
+
+Usage: perl epu2html.pl [-c##] [filenames]
+ If more than one file is given, it will assume that the filenames are
+ in the correct order and number them accordingly.
+
+Options:
+-c[number]  Sets the number of columns in the text file.
+            Default is 70, which is pretty standard at EPU.
+
+
+How to build an EPUB ebook:
+ 0) This assumes you have a basic knowledge of HTML and CLI environments.
+ 1) Create a folder for an ebook and cd into it.
+ 2) Run this program with all of the text files you want to include, in order.
+    Example:   perl ~/epu2html.pl first.txt second.txt last.txt
+    If they're already in order, like this: perl epu2html.pl ../WOR/rmtn*.txt
+ 3) Look at the files in a web browser, and edit them where there's mistakes.
+    The program will tell you where it put things with class "unknown", which
+    means it got really confused there.  Other places to look:
+    - Uncentered headers, typically in the front and end matter.  Let me know
+      if you have an idea how to tell the difference between a short paragraph
+      and a header that has 8 spaces in front of it algorithmically.
+ 4) Run buildepubcontainer.pl
+    Example: perl buildepubcontainer.pl .  (that dot at the end is current dir)
+ 5) Some files got created, you'll need to look at them.  Especially the
+    titles, though the guesses are pretty good now.  Edit as necessary
+    - yuri.opf
+    - toc.ncx
+    - kei.css (only if you want to customize CSS)
+    Change any attributes that look wrong.
+ 6) All good?  Ready to zip this up.
+    Run: zip -r ../[book name].epub -x \*.meta
+    The metafiles aren't part of the final epub.
+    You'll want to run zip from the inside the folder, so the paths aren't
+    screwed up on the final product.
+
+epu2html v0.1
+by Brent Laabs, April 2012
+Licensed under Creative Commons-Attribution License (CC BY 3.0).
+http://creativecommons.org/licenses/by/3.0/
