@@ -14,7 +14,7 @@ Options:
             Default is 70, which is pretty standard at EPU.
 
 
-How to build an EPUB ebook:
+How to build an EPUB ebook in seven "easy" steps:
  0) This assumes you have a basic knowledge of HTML and CLI environments.
  1) Create a folder for an ebook and cd into it.
  2) Run this program with all of the text files you want to include, in order.
@@ -26,16 +26,18 @@ How to build an EPUB ebook:
     - Uncentered headers, typically in the front and end matter.  Let me know
       if you have an idea how to tell the difference between a short paragraph
       and a header that has 8 spaces in front of it algorithmically.
- 4) Run buildepubcontainer.pl
+ 4) Add a title page if you feel like it.  Name it something like 00title.html
+    so it's put in the book first.  This could become automatic, eventually.
+ 5) Run buildepubcontainer.pl
     Example: perl buildepubcontainer.pl .  (that dot at the end is current dir)
- 5) Some files got created, you'll need to look at them.  Especially the
+ 6) Some files got created, you'll need to look at them.  Especially the
     titles, though the guesses are pretty good now.  Edit as necessary
     - yuri.opf
     - toc.ncx
     - kei.css (only if you want to customize CSS)
-    Change any attributes that look wrong.
- 6) All good?  Ready to zip this up.
-    Run: zip -r ../[book name].epub -x \*.meta
+    Change any attributes that look wrong, like titles or authors.
+ 7) All good?  Ready to zip this up.
+    Run: zip -r ../[book name].epub * -x \*.meta
     The metafiles aren't part of the final epub.
     You'll want to run zip from the inside the folder, so the paths aren't
     screwed up on the final product.

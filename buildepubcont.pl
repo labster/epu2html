@@ -166,8 +166,23 @@ else {$label = $f; $author = ''; }
 chomp $label;
 chomp $author;
 
-$labels{$f} = $label;
-$authors{$f} = $author;
-$first_title //= $label;
+$labels{$f} = html_escape($label);
+$authors{$f} = html_escape($author);
+$first_title //= html_escape($label);
 }
+}
+
+
+sub html_escape {
+# Gets rid of all the HTML control characters
+# the non-URL version of escape_string above
+  BEGIN {
+     use vars '%html_escape';
+     %html_escape = ( '&'=>'&amp;',  '<'=>'&lt;', '>'=>'&gt;',
+                      "'"=>'&apos;', '"'=>'&quot;' );
+  }
+
+  my $s = shift;
+  $s =~ s/(['>&<"])/$html_escape{$1}/g;
+  return $s;
 }

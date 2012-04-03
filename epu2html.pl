@@ -1,62 +1,36 @@
-=pod
-
-Usage: perl epu2html.pl [-c##] [filenames]
- If more than one file is given, it will assume that the filenames are
- in the correct order and number them accordingly.
-
-Options:
--c[number]  Sets the number of columns in the text file.
-            Default is 70, which is pretty standard at EPU.
-
-
-How to build an EPUB ebook:
- 0) This assumes you have a basic knowledge of HTML and CLI environments.
- 1) Create a folder for an ebook and cd into it.
- 2) Run this program with all of the text files you want to include, in order.
-    Example:   perl ~/epu2html.pl first.txt second.txt last.txt
-    If they're already in order, like this: perl epu2html.pl ../WOR/rmtn*.txt
- 3) Look at the files, and edit where there's mistakes.  The program will tell
-    you where it put things with class "unknown", which means it got really
-    confused.  Other places to look:
-    - Uncentered headers, typically in the front and end matter.  Let me know
-      if you have an idea how to tell the difference between a short paragraph
-      and a header that has 8 spaces in front of it algorithmically.
- 4) Run buildepubcontainer.pl
-    Example: perl buildepubcontainer.pl .  (that dot at the end is current dir)
- 5) Some files got created, you'll need to look at them.  Especially the
-    titles, though the guesses are pretty good now.  Edit as necessary
-    - yuri.opf
-    - toc.ncx
-    - kei.css (only if you want to customize CSS)
-    Change any attributes that look wrong.
- 6) All good?  Ready to zip this up.
-    Run: zip -r ../[book name].epub -x \*.meta
-    The metafiles aren't part of the final epub.
-    You'll want to run zip from the inside the folder, so the paths aren't
-    screwed up on the final product.
-
-epu2html v0.1
-by Brent Laabs, April 2012
-Licensed under Creative Commons-Attribution License (CC BY 3.0).
-http://creativecommons.org/licenses/by/3.0/
-=cut
-
-
-
+#  epu2html v0.1
+# by Brent Laabs, April 2012
+# Licensed under Creative Commons-Attribution License (CC BY 3.0).
+# http://creativecommons.org/licenses/by/3.0/
 
 use warnings;
 use strict;
 use feature qw/say switch/;
 use CGI qw/:standard/;   #for the html tags
+use Cwd 'abs_path';
+use File::Basename;
+
+##### You might need to configure this one #######
+## if the CSS is not in the same folder as this script
+   # my $path_to_css = '/path/to/kei.css';
+   my $path_to_css = dirname(abs_path($0)) . '/kei.css';
+## if you want to name it something other than kei.css
+   my $stylesheet = "kei.css";
+
+my $path_to_css_shell = $path_to_css;
+$path_to_css_shell =~ s/'/'\''/g;
+`cp '$path_to_css_shell' .`;
+-e "./kei.css" or warn "Could not copy CSS file from $path_to_css.";
 
 my $columns = 70;  #change as cli arg
 my $multi_file = $#ARGV;
 my $num_files_processed = 0;
-
-# my $style = slurp('/web/img/foo.css');
-my $stylesheet = "kei.css";
 my %contains_unknown_paragraphs;
 
+# my $style = slurp('/web/img/foo.css');
+
+
+# FILE PROCESSING
 while (my $filename = shift @ARGV ) {
 # command line switches
 $filename =~ /^-c(\d+)$/ and $columns = $1 and next;
@@ -107,12 +81,17 @@ for (; $i < $#lines; $i++) {
            say $fh p({-class=>"music"}, general_formatting($line));
            next;
        }
-       elsif ($lines[$i+1] =~ m|\*/ \s*|x or ($lines[$i+2] =~ m|\*/ \s*|x and $foo=1)) {
-           # 2-line lookahead
-           $line =  $line . "\n" . $lines[$i+1] // '' .
-                            $foo ? ($lines[$i+2] // '') . "\n" : '';
+#       elsif ($lines[$i+1] =~ m|\*/ \s*|x or ($lines[$i+2] =~ m|\*/ \s*|x and $foo=1)) {
+#           # 2-line lookahead
+#           $line =  $line . "\n" . $lines[$i+1] // '' .
+#                            $foo ? ($lines[$i+2] // '') . "\n" : '';
+       elsif (grep { m|\*/\s*| } @lines[$i+1 .. $i+4]) {  #4-line lookahead
+           for (1..4) {
+               $i++;
+               $line .= "<br />\n" . $lines[$i];
+               $lines[$i] =~ m|\*/\s*| and last;
+           }
            say $fh p({-class=>"music"}, general_formatting($line));
-           $i += 1 + $foo;
            next;
        }
        # else ... it isn't music, so continuing
@@ -164,13 +143,15 @@ for (; $i < $#lines; $i++) {
 
 
 
-    ## Lyrics or Email ##
+    ## Lyrics or Email or Console ##
     if ( $indent == 0 ) {
       if ( $line =~ /\@|[[:punct:]]{4,}/ #lots of punctuation
         or ($line =~ /^\w+:/ and $line !~ /^http:/)  #looks like email/http header
                                          # but is not actually a hyperlink
         or $line =~ /^\/|\>/             #path or prompt start
-        or $lines[$i+1] =~ /^\s/) {    #next line indented; then: guess email/durandal/code
+        or $line =~ /[A-Z]/ && $line !~ /[a-z]/   #all caps
+        or $lines[$i+1] =~ /^\s/) {    #next line indented
+                    ## $ >GUESS CONSOLE MODE  (email/durandal/code)
           #slurp past \n\n
           while ($i+1 <= $#lines and $lines[$i+1] !~ /^\s{4,9}/
                   and !is_centered($lines[$i+1])) { 
@@ -273,8 +254,10 @@ $line = html_escape($line);
 $line =~ s/~ranma~/<br \/>/g; #ranma... will never appear in UF!
 
 #underlining and italics
-$line =~ s/(\W)-(\w.*?\w\W?)-(\W)/$1<i>$2<\/i>$3/g;
-$line =~ s/(\W)_(\w.*?\w\W?)_(\W)/$1<u>$2<\/u>$3/g;
+# $line =~ s/(\W)-(\w.*?\w\W?)-(\W)/$1<i>$2<\/i>$3/g;
+$line =~ s/(\W)-(\w(?:.*?\w)?\W?)-(\W)/$1<i>$2<\/i>$3/g;
+
+$line =~ s/(\W)_(\w(?:.*?\w)?\W?)_(\W)/$1<u>$2<\/u>$3/g;
 
 $line =~ s/ -(?: |\z)/&mdash;/g;
 
@@ -352,7 +335,8 @@ sub get_author_title {
 
   is_front_matter($line) and return;
   is_author($line) and $author_guess = $line and return;
-  $line =~ /\d\:\d\d/ and return;
+  $title_guess and return;
+  $line =~ /\d[\d:]\d\d/ and return;
   $title_guess = $line;
 
   return;
