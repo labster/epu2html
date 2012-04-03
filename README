@@ -28,8 +28,8 @@ How to build an EPUB ebook in seven "easy" steps:
       and a header that has 8 spaces in front of it algorithmically.
  4) Add a title page if you feel like it.  Name it something like 00title.html
     so it's put in the book first.  This could become automatic, eventually.
- 5) Run buildepubcontainer.pl
-    Example: perl buildepubcontainer.pl .  (that dot at the end is current dir)
+ 5) Run buildepubcont.pl
+    Example: perl buildepubcont.pl .  (that dot at the end is the current dir)
  6) Some files got created, you'll need to look at them.  Especially the
     titles, though the guesses are pretty good now.  Edit as necessary
     - yuri.opf
