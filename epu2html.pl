@@ -22,8 +22,10 @@ $path_to_css_shell =~ s/'/'\''/g;
 `cp '$path_to_css_shell' .`;
 -e "./kei.css" or warn "Could not copy CSS file from $path_to_css.";
 
-my $columns = 70;  #change as cli arg
-my $multi_file = $#ARGV;
+my $columns = 70;  #change with -c## option
+my $multi_file = (grep { $_ !~ /^-/ } @ARGV) - 1;
+my $use_stdout = 0; #change with -o option
+my $supress_summary = 0; #change with -q
 my $num_files_processed = 0;
 my %contains_unknown_paragraphs;
 
@@ -34,6 +36,9 @@ my %contains_unknown_paragraphs;
 while (my $filename = shift @ARGV ) {
 # command line switches
 $filename =~ /^-c(\d+)$/ and $columns = $1 and next;
+$filename =~ /^-utf8$/ and charset('utf-8') and next;
+$filename =~ /^-o$/ and $use_stdout = 1 and next;
+$filename =~ /^-q$/ and $supress_summary = 1 and next;
 
 
 -e $filename or die "Cannot locate $filename";
@@ -50,7 +55,8 @@ $outfilename =~ s/\.txt$/.html/;
 $outfilename = sprintf("%02d", $num_files_processed) . $outfilename if $multi_file;
      #say $outfilename; say $multi_file; exit;
 my $fh;
-open $fh, ">$outfilename";
+if ($use_stdout) { $fh = *STDOUT; }
+else { open $fh, ">$outfilename"; }
 
 say $fh start_html(-title=>$shorttitle,
               -style=>{'src'=>$stylesheet},
@@ -223,10 +229,12 @@ for (; $i < $#lines; $i++) {
 
 print $fh end_html;
 
-close $fh;
-say "Processed: $filename";
-say "Title: $title_guess";
-say "Author: $author_guess";
+close $fh unless $use_stdout;
+unless ($supress_summary) {
+  say "Processed: $filename";
+  say "Title: $title_guess";
+  say "Author: $author_guess";
+}
 
 my $metafilename = $outfilename;
 $metafilename =~ s/\.html$/\.meta/;
@@ -239,11 +247,13 @@ close $meta;
 } #end huge while
 
 #report
-say '-' x 20;
-say "$num_files_processed files processed";
-if (keys %contains_unknown_paragraphs) {
-  say "These files have unknown paragraphs:";
-  say $_ for sort keys %contains_unknown_paragraphs;
+unless ($supress_summary) {
+  say '-' x 20;
+  say "$num_files_processed files processed";
+  if (keys %contains_unknown_paragraphs) {
+    say "These files have unknown paragraphs:";
+    say $_ for sort keys %contains_unknown_paragraphs;
+  }
 }
 
 
