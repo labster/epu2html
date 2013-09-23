@@ -12,6 +12,9 @@ Usage: perl epu2html.pl [-c##] [filenames]
 Options:
 -c[number]  Sets the number of columns in the text file.
             Default is 70, which is pretty standard at EPU.
+-o          Sends the output to STDOUT instead of a file.
+-q          Suppress the summary text (quiet)
+-utf8       Sets the text output as utf-8 instead of iso-8859-1
 
 
 How to build an EPUB ebook in seven "easy" steps:

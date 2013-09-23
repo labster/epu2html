@@ -1,5 +1,7 @@
 
-body { margin: 5px 10px;}
+/* body { margin: 5px 10px;} */
+html { background: #eee; }
+body { background: #fff; padding: 5px 10px; max-width: 40em; margin: auto;}
 
 p {text-indent: 3em; margin: 0; min-height: 1em; clear: both;}
 

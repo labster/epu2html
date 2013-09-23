@@ -25,7 +25,8 @@ $path_to_css_shell =~ s/'/'\''/g;
 my $columns = 70;  #change with -c## option
 my $multi_file = (grep { $_ !~ /^-/ } @ARGV) - 1;
 my $use_stdout = 0; #change with -o option
-my $supress_summary = 0; #change with -q
+my $quiet_mode = 0; #change with -q
+my $strict_mode =0; #change with -s
 my $num_files_processed = 0;
 my %contains_unknown_paragraphs;
 
@@ -38,7 +39,8 @@ while (my $filename = shift @ARGV ) {
 $filename =~ /^-c(\d+)$/ and $columns = $1 and next;
 $filename =~ /^-utf8$/ and charset('utf-8') and next;
 $filename =~ /^-o$/ and $use_stdout = 1 and next;
-$filename =~ /^-q$/ and $supress_summary = 1 and next;
+$filename =~ /^-q$/ and $quiet_mode = 1 and next;
+$filename =~ /^-s$/ and $strict_mode = 1 and next;
 
 
 -e $filename or die "Cannot locate $filename";
@@ -81,21 +83,17 @@ for (; $i < $#lines; $i++) {
     if ($line eq '') { say $fh "<p />"; next;}
 
     ## Music ##
-    if ($line =~ m| \s* /\* |x or $line =~ m|^\s*\<\<|) {
-       if ($line =~ m|\*/ \s*|x or $line =~ m|^\s*\<\<|) {
+    if ($line =~ m| \s* /[\*♪] |x or $line =~ m|^\s*\<\<|) {
+       if ($line =~ m|[\*♪]/ \s*|x or $line =~ m|^\s*\<\<|) {
            #single-line song, good
            say $fh p({-class=>"music"}, general_formatting($line));
            next;
        }
-#       elsif ($lines[$i+1] =~ m|\*/ \s*|x or ($lines[$i+2] =~ m|\*/ \s*|x and $foo=1)) {
-#           # 2-line lookahead
-#           $line =  $line . "\n" . $lines[$i+1] // '' .
-#                            $foo ? ($lines[$i+2] // '') . "\n" : '';
-       elsif (grep { m|\*/\s*| } @lines[$i+1 .. $i+4]) {  #4-line lookahead
+       elsif (grep { m|[\*♪]/\s*| } @lines[$i+1 .. $i+4]) {  #4-line lookahead
            for (1..4) {
                $i++;
                $line .= "<br />\n" . $lines[$i];
-               $lines[$i] =~ m|\*/\s*| and last;
+               $lines[$i] =~ m|[\*♪]/\s*| and last;
            }
            say $fh p({-class=>"music"}, general_formatting($line));
            next;
@@ -230,7 +228,7 @@ for (; $i < $#lines; $i++) {
 print $fh end_html;
 
 close $fh unless $use_stdout;
-unless ($supress_summary) {
+unless ($quiet_mode) {
   say "Processed: $filename";
   say "Title: $title_guess";
   say "Author: $author_guess";
@@ -247,7 +245,7 @@ close $meta;
 } #end huge while
 
 #report
-unless ($supress_summary) {
+unless ($quiet_mode) {
   say '-' x 20;
   say "$num_files_processed files processed";
   if (keys %contains_unknown_paragraphs) {
@@ -325,6 +323,7 @@ sub is_author {
     my @authors = qw/Hutchins Anne MegaZone Overstreet Depew Mui Meadows Martin Barlow ReRob Mann Moyer Collier/;
         # in no particular order (common last names in title avoided like "Rose")
     our @authregexes = map { qr/$_/ } @authors;
+    push @authregexes, qr/^\s*by/;
     }
   our @authregexes;
   my $s = shift or return 0;
