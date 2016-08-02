@@ -263,11 +263,11 @@ $line =~ s/~ranma~/<br \/>/g; #ranma... will never appear in UF!
 
 #underlining and italics
 # $line =~ s/(\W)-(\w.*?\w\W?)-(\W)/$1<i>$2<\/i>$3/g;
-$line =~ s/(\W)-(\w(?:.*?\w)?\W?)-(\W)/$1<i>$2<\/i>$3/g;
+$line =~ s/(\W)-(\w(?:.*?\w)??\W?)-(\W)/$1<i>$2<\/i>$3/g;
 
 $line =~ s/(\W)_(\w(?:.*?\w)?\W?)_(\W)/$1<u>$2<\/u>$3/g;
 
-$line =~ s/ -(?: |\z)/&mdash;/g;
+$line =~ s/ -(?: |\Z)/&mdash;/g;
 
 #canonical hyperlink
 $line =~ s|(http://[^ \n<]+)|<a href="$1">$1</a>|g;
