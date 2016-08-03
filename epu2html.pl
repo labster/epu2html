@@ -10,6 +10,16 @@ use CGI qw/:standard/;   #for the html tags
 use Cwd 'abs_path';
 use File::Basename;
 
+my $can_hyphenate = 1;
+
+eval "use TeX::Hyphen";
+my $hyp;
+if ($@) {
+    $can_hyphenate = 0;
+} else {
+    $hyp = new TeX::Hyphen;
+}
+
 ##### You might need to configure this one #######
 ## if the CSS is not in the same folder as this script
    # my $path_to_css = '/path/to/kei.css';
@@ -27,6 +37,7 @@ my $multi_file = (grep { $_ !~ /^-/ } @ARGV) - 1;
 my $use_stdout = 0; #change with -o option
 my $quiet_mode = 0; #change with -q
 my $strict_mode =0; #change with -s
+my $hyphenation =0; # change with -h
 my $num_files_processed = 0;
 my %contains_unknown_paragraphs;
 
@@ -41,7 +52,9 @@ $filename =~ /^-utf8$/ and charset('utf-8') and next;
 $filename =~ /^-o$/ and $use_stdout = 1 and next;
 $filename =~ /^-q$/ and $quiet_mode = 1 and next;
 $filename =~ /^-s$/ and $strict_mode = 1 and next;
+$filename =~ /^-h$/ and $hyphenation = 1 and next;
 
+die "Need TeX::Hyphen to hyphenate" if ($hyphenation && !$can_hyphenate);
 
 -e $filename or die "Cannot locate $filename";
 my @lines = slurp($filename);
@@ -272,9 +285,28 @@ $line =~ s/ -(?: |\Z)/&mdash;/g;
 #canonical hyperlink
 $line =~ s|(http://[^ \n<]+)|<a href="$1">$1</a>|g;
 
+$line = hyphenate($line) if ($hyphenation);
+
 return $line;
+}
 
+sub hyphenate {
+    my $line = shift;
+    # Note: not using \w because TeX::Hyphen's set of chars that may be in a
+    # hyphenatable word is not the same as \w, but we still want to hyphenate
+    # words enclosed in such chars.
+    while ($line =~ m/(?:[^a-zA-Z]|^)([a-zA-Z]+)(?:[^a-zA-Z]|$)/g) {
+        my $word = $1;
+        my $new = $word;
+        for my $pos (reverse $hyp->hyphenate($new)) {
+            substr($new, $pos, 0) = '&shy;';
+        }
+        my $p = pos($line);
+        substr($line, $-[1], $+[1] - $-[1]) = $new if $new ne $word;
+        pos($line) = $p + (length($new) - length($word));
+    }
 
+    return $line;
 }
 
 
