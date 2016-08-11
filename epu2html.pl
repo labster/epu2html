@@ -339,29 +339,14 @@ sub html_escape {
 
 
 sub is_front_matter {
-  BEGIN {
-    my @stuff = ("from another time", "Eyrie Productions", "UNDOCUMENTED");
-    our @frontregexes = map { qr/$_/i } @stuff;
-    }
-  our @frontregexes;
-  my $s = shift or return 0;
-  for my $r (@frontregexes)
-    { $s =~ $r and return 1; }
-  return 0;
+    my $front_rx = qr/from another time|Eyrie Productions|UNDOCUMENTED/;
+    return( shift =~ $front_rx );
 }
 
 sub is_author {
-  BEGIN {
-    my @authors = qw/Hutchins Anne MegaZone Overstreet Depew Mui Meadows Martin Barlow ReRob Mann Moyer Collier/;
-        # in no particular order (common last names in title avoided like "Rose")
-    our @authregexes = map { qr/$_/ } @authors;
-    push @authregexes, qr/^\s*by/;
-    }
-  our @authregexes;
-  my $s = shift or return 0;
-  for my $r (@authregexes)
-    { $s =~ $r and return 1; }
-  return 0;
+    # in no particular order (common last names in title avoided like "Rose")
+    my $author_rx = qr/^\s*by|Hutchins|Anne|MegaZone|Overstreet|Depew|Mui|Meadows|Martin|Barlow|ReRob|Mann|Moyer|Collier/;
+    return( shift =~ $author_rx );
 }
 
 sub get_author_title {
