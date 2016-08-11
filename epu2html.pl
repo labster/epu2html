@@ -47,218 +47,28 @@ my %contains_unknown_paragraphs;
 
 # FILE PROCESSING
 while (my $filename = shift @ARGV ) {
-# command line switches
-$filename =~ /^-c(\d+)$/ and $columns = $1 and next;
-$filename =~ /^-utf8$/ and charset('utf-8') and next;
-$filename =~ /^-o$/ and $use_stdout = 1 and next;
-$filename =~ /^-q$/ and $quiet_mode = 1 and next;
-$filename =~ /^-s$/ and $strict_mode = 1 and next;
-$filename =~ /^-h$/ and $hyphenation = 1 and next;
+    # command line switches
+    $filename =~ /^-c(\d+)$/ and $columns = $1 and next;
+    $filename =~ /^-utf8$/ and charset('utf-8') and next;
+    $filename =~ /^-o$/ and $use_stdout = 1 and next;
+    $filename =~ /^-q$/ and $quiet_mode = 1 and next;
+    $filename =~ /^-s$/ and $strict_mode = 1 and next;
+    $filename =~ /^-h$/ and $hyphenation = 1 and next;
 
-die "Need TeX::Hyphen to hyphenate" if ($hyphenation && !$can_hyphenate);
+    die "Install TeX::Hyphen to hyphenate" if ($hyphenation && !$can_hyphenate);
 
--e $filename or die "Cannot locate $filename";
-my @lines = slurp($filename);
-# say "Lines:", scalar(@lines);
-
-our $author_guess = '';
-our $title_guess  = '';
-
-$num_files_processed++;  $num_files_processed >= 256 and die "too many";
-my $shorttitle = $filename =~ m|/| ? pop([split m|/|, $filename]) : $filename;
-my $outfilename = $shorttitle;
-$outfilename =~ s/\.txt$/.html/;
-$outfilename = sprintf("%02d", $num_files_processed) . $outfilename if $multi_file;
-     #say $outfilename; say $multi_file; exit;
-my $fh;
-if ($use_stdout) { $fh = *STDOUT; }
-else { open $fh, ">$outfilename"; }
-
-say $fh start_html(-title=>$shorttitle,
-              -style=>{'src'=>$stylesheet},
-             # -head=>style({-type=>'text/css'}, $style),
-              );
+    -e $filename or die "Cannot locate $filename";
+    -r _ or die "Cannot read $filename";
+    -f _ or die "$filename is not a plain file";
 
 
-my $i = 0;
-push @lines, ''; # squash over-index error
-for (; $i < $#lines; $i++) {
-    # need a proper iterator so we can look at nearby lines
-    my $line = $lines[$i];
-    my $foo = 0;
-    
-    # $line = general_formatting($line);
-    $line =~ /^(\s*)/ and
-    my $indent = length $1;
-    $line =~ /\S/ or $indent = 0;
-    #print $indent, " ";  next;
+    transcode_file($filename);
+    $num_files_processed++;  $num_files_processed >= 256 and die "too many";
 
-    ## Empty line ##
-    if ($line eq '') { say $fh "<p />"; next;}
-
-    ## Music ##
-    if ($line =~ m| \s* /[\*♪] |x or $line =~ m|^\s*\<\<|) {
-       if ($line =~ m|[\*♪]/ \s*|x or $line =~ m|^\s*\<\<|) {
-           #single-line song, good
-           say $fh p({-class=>"music"}, general_formatting($line));
-           next;
-       }
-       elsif (grep { m|[\*♪]/\s*| } @lines[$i+1 .. $i+4]) {  #4-line lookahead
-           for (1..4) {
-               $i++;
-               $line .= "<br />\n" . $lines[$i];
-               $lines[$i] =~ m|[\*♪]/\s*| and last;
-           }
-           say $fh p({-class=>"music"}, general_formatting($line));
-           next;
-       }
-       # else ... it isn't music, so continuing
-    }
-
-    ## Centered text ##
-    sub is_centered {
-        my $line = shift // return 0;
-        my $continuing = shift // 0;  #t'skaia fix
-        my $frontspace;
-        $line =~ /^(\s{2,})/ and $frontspace = length $1
-          and ($frontspace > 9 or ($continuing and is_centered($lines[$i+2])))
-          or return 0;
-        abs($frontspace - ($columns - length $line)) <= 5 and return 1;
-        return 0;
-    }
-    if ( is_centered($line) ) {
-        while ( $lines[$i+1] =~ /\w/ and is_centered($lines[$i+1], 1) ) {
-          $i++;
-          $line .= "<br />\n" . $lines[$i];
-        }
-        #my $class = ($line =~ /[[:lower:]]{2,}/) ? 'title' : 'bigtitle';
-        my $class = 'title';
-        $class = 'cast' if $i > .9*$#lines;
-        #$line =~ s/\s{2,}/ /g;
-        say $fh p({-class=>$class}, general_formatting($line));
-        $title_guess and $author_guess or get_author_title($line);
-        next;
-    }
-
-    ## Normal paragraphs ##
-    if ( $indent >= 4 and $indent <= 9 ) {
-        while ($lines[$i+1] ne '' and $lines[$i+1] !~ /^\s{2,}/) #allow 1 space for errors
-           { $line .= "\n" . $lines[$i+1]; $i++ }
-        if ($line =~ /^\s*\>[^\w]/)
-           { say $fh p({-class=>'code'}, general_formatting($line)); next; }
-        if ($line =~ /^\s*"/ and $line !~ /\n/s and $line !~ /".*"/) {
-           #this is a quote trying really hard to look like a paragraph
-           my $x = join "\n", @lines[$i..$i+10];
-           if ($x =~ /^\s*--/m) { #make sure it's quotelike
-              while (1) { $line .= "\n<br />" . $lines[$i+1]; $i++; $lines[$i] =~ /^\s*--/ and last; }
-              say $fh p({-class=>'quote'}, $line);
-              next;
-           }
-        }
-        say $fh p(general_formatting($line));
-        next;
-    }
-
-
-
-    ## Lyrics or Email or Console ##
-    if ( $indent == 0 ) {
-      if ( $line =~ /\@|[[:punct:]]{4,}/ #lots of punctuation
-        or ($line =~ /^\w+:/ and $line !~ /^http:/)  #looks like email/http header
-                                         # but is not actually a hyperlink
-        or $line =~ /^\/|\>/             #path or prompt start
-        or $line =~ /[A-Z]/ && $line !~ /[a-z]/   #all caps
-        or $lines[$i+1] =~ /^\s/) {    #next line indented
-                    ## $ >GUESS CONSOLE MODE  (email/durandal/code)
-          #slurp past \n\n
-          while ($i+1 <= $#lines and $lines[$i+1] !~ /^\s{4,9}/
-                  and !is_centered($lines[$i+1])) { 
-              #$lines[$i+1] eq '' and $lines[$i+1] = "<br />";
-              $line .= "\n" . $lines[$i+1];
-              $i++;
-          }
-          $line =~ s/\</&lt;/g;
-          say $fh p({class=>'console'}, $line, "\n<br />");
-      }
-      elsif ( $line =~ /\s{4,}/ ) { #guess dual-column lyrics/cast
-          my ($lhs, $rhs) = split /\s{4,}/, $line;
-          my $table = Tr(td($lhs), td($rhs));
-          while ($lines[$i+1] ne '') {
-             my $curr = $lines[$i+1];
-             my $over = 0;
-              $i++;
-              if ($curr =~ /^\s{15,}/) {  # empty left column
-                  $curr =~ s/^\s{15,}//;
-                  $table .= Tr(td(), td($curr)). "\n";
-                  #$rhs .= "<br />\n" . $curr;
-                  #$lhs .= "<br />\n";
-                  next;
-              }
-              if ($curr =~ /^\s{1,14}/) {  #indented left col (hi t'skaia!)
-                  $curr =~ s/^(\s)*// and $over = length $1;
-                  # $lhs .= "\n" . $curr;
-                  # next;    
-              }
-              if ($curr =~ /\s{2,}/) {
-                  my ($l, $r) = split /\s{2,}/, $curr;
-                  #$lhs .= ($over ? "\n" . (' ' x $over) : "<br />\n" ). $l;
-                  #$rhs .= "<br />\n$r";
-                  $table .= Tr(
-                      td($over ? span({-class=>'ind'}, (' ' x $over), $l) : $l),
-                      td($r)). "\n";
-                  next;
-              }
-              #default...
-              # $lhs .= "<br />\n" . $curr;
-              # $rhs .= "<br />\n";
-              $table .= Tr(td($curr), td()) . "\n";
-          }
-          #say $fh table({-class=>'split'}, TR(
-          #   td({-class=>'lcast'},  general_formatting($lhs)),
-          #   td({-class=>'rlyric'}, general_formatting($rhs))
-          #));
-          #say $fh div({-class=>'split'}, 
-          #   p({-class=>'lcast'},  general_formatting($lhs)),
-          #   p({-class=>'rlyric'}, general_formatting($rhs))
-          #);
-          say $fh table({-class=>'split'}, $table);
-
-      }
-      else { #guess lyrics
-          #slurp until end of stanza
-          while ($lines[$i+1] =~ /\S/) { $line .= "<br />\n" . $lines[$i+1]; $i++ }
-          say $fh p({-class=>'lyrics'}, general_formatting($line));
-      }
-    next;
-    }
-
-   ## default ##
-   say $fh p({-class=>'unknown'}, general_formatting($line));
-   $contains_unknown_paragraphs{$outfilename} = 1;
-       
-            
-}  #end for
-
-print $fh end_html;
-
-close $fh unless $use_stdout;
-unless ($quiet_mode) {
-  say "Processed: $filename";
-  say "Title: $title_guess";
-  say "Author: $author_guess";
 }
 
-my $metafilename = $outfilename;
-$metafilename =~ s/\.html$/\.meta/;
-my $meta;
-open $meta, ">$metafilename";
-say $meta $title_guess;
-say $meta $author_guess;
-close $meta;
 
-} #end huge while
-
-#report
+#end report
 unless ($quiet_mode) {
   say '-' x 20;
   say "$num_files_processed files processed";
@@ -269,26 +79,234 @@ unless ($quiet_mode) {
 }
 
 
+
+sub transcode_file {
+    my $filename = shift;
+    my @lines = slurp($filename);
+    # say "Lines:", scalar(@lines);
+
+    our $author_guess = '';
+    our $title_guess  = '';
+
+    my $shorttitle = $filename =~ m|/| ? pop([split m|/|, $filename]) : $filename;
+    my $outfilename = $shorttitle;
+    $outfilename =~ s/\.txt$/.html/;
+    $outfilename = sprintf("%02d", $num_files_processed) . $outfilename if $multi_file;
+         #say $outfilename; say $multi_file; exit;
+
+    my $fh;
+    if ($use_stdout) { $fh = *STDOUT; }
+    else { open $fh, ">", $outfilename; }
+
+    say $fh start_html(-title=>$shorttitle,
+                  -style=>{'src'=>$stylesheet},
+                 # -head=>style({-type=>'text/css'}, $style),
+                  );
+
+
+    push @lines, ''; # squash over-index error
+    # need a proper iterator so we can look at nearby lines
+    for (my $i = 0; $i < $#lines; $i++) {
+        my $line = $lines[$i];
+
+        # $line = general_formatting($line);
+        $line =~ /^(\s*)/ and
+        my $indent = length $1;
+        $line =~ /\S/ or $indent = 0;
+        #print $indent, " ";  next;
+
+        ## Empty line ##
+        if ($line eq '') { say $fh "<p />"; next;}
+
+        ## Music ##
+        if ($line =~ m| \s* /[\*♪] |x or $line =~ m|^\s*\<\<|) {
+           if ($line =~ m|[\*♪]/ \s*|x or $line =~ m|^\s*\<\<|) {
+               #single-line song, good
+               say $fh p({-class=>"music"}, general_formatting($line));
+               next;
+           }
+           elsif (grep { m|[\*♪]/\s*| } @lines[$i+1 .. $i+4]) {  #4-line lookahead
+               for (1..4) {
+                   $i++;
+                   $line .= "<br />\n" . $lines[$i];
+                   $lines[$i] =~ m|[\*♪]/\s*| and last;
+               }
+               say $fh p({-class=>"music"}, general_formatting($line));
+               next;
+           }
+           # else ... it isn't music, so continuing
+        }
+
+        ## Centered text ##
+        if ( is_centered($line, \@lines, $i) ) {
+            while ( $lines[$i+1] =~ /\w/ and is_centered($lines[$i+1], \@lines, $i, 1) ) {
+              $i++;
+              $line .= "<br />\n" . $lines[$i];
+            }
+            #my $class = ($line =~ /[[:lower:]]{2,}/) ? 'title' : 'bigtitle';
+            my $class = 'title';
+            $class = 'cast' if $i > .9*$#lines;
+            #$line =~ s/\s{2,}/ /g;
+            say $fh p({-class=>$class}, general_formatting($line));
+            $title_guess and $author_guess or get_author_title($line);
+            next;
+        }
+
+        ## Normal paragraphs ##
+        if ( $indent >= 4 and $indent <= 9 ) {
+            while ($lines[$i+1] ne '' and $lines[$i+1] !~ /^\s{2,}/) #allow 1 space for errors
+               { $line .= "\n" . $lines[$i+1]; $i++ }
+            if ($line =~ /^\s*\>[^\w]/)
+               { say $fh p({-class=>'code'}, general_formatting($line)); next; }
+            if ($line =~ /^\s*"/ and $line !~ /\n/s and $line !~ /".*"/) {
+               #this is a quote trying really hard to look like a paragraph
+               my $x = join "\n", @lines[$i..$i+10];
+               if ($x =~ /^\s*--/m) { #make sure it's quotelike
+                  while (1) { $line .= "\n<br />" . $lines[$i+1]; $i++; $lines[$i] =~ /^\s*--/ and last; }
+                  say $fh p({-class=>'quote'}, $line);
+                  next;
+               }
+            }
+            say $fh p(general_formatting($line));
+            next;
+        }
+
+
+
+        ## Lyrics or Email or Console ##
+        if ( $indent == 0 ) {
+          if ( $line =~ /\@|[[:punct:]]{4,}/ #lots of punctuation
+            or ($line =~ /^\w+:/ and $line !~ /^http:/)  #looks like email/http header
+                                             # but is not actually a hyperlink
+            or $line =~ /^\/|\>/             #path or prompt start
+            or $line =~ /[A-Z]/ && $line !~ /[a-z]/   #all caps
+            or $lines[$i+1] =~ /^\s/) {    #next line indented
+                        ## $ >GUESS CONSOLE MODE  (email/durandal/code)
+              #slurp past \n\n
+              while ($i+1 <= $#lines and $lines[$i+1] !~ /^\s{4,9}/
+                      and !is_centered($lines[$i+1], \@lines, $i)) {
+                  #$lines[$i+1] eq '' and $lines[$i+1] = "<br />";
+                  $line .= "\n" . $lines[$i+1];
+                  $i++;
+              }
+              $line =~ s/\</&lt;/g;
+              say $fh p({class=>'console'}, $line, "\n<br />");
+          }
+          elsif ( $line =~ /\s{4,}/ ) { #guess dual-column lyrics/cast
+              my ($lhs, $rhs) = split /\s{4,}/, $line;
+              my $table = Tr(td($lhs), td($rhs));
+              while ($lines[$i+1] ne '') {
+                 my $curr = $lines[$i+1];
+                 my $over = 0;
+                  $i++;
+                  if ($curr =~ /^\s{15,}/) {  # empty left column
+                      $curr =~ s/^\s{15,}//;
+                      $table .= Tr(td(), td($curr)). "\n";
+                      #$rhs .= "<br />\n" . $curr;
+                      #$lhs .= "<br />\n";
+                      next;
+                  }
+                  if ($curr =~ /^\s{1,14}/) {  #indented left col (hi t'skaia!)
+                      $curr =~ s/^(\s)*// and $over = length $1;
+                      # $lhs .= "\n" . $curr;
+                      # next;
+                  }
+                  if ($curr =~ /\s{2,}/) {
+                      my ($l, $r) = split /\s{2,}/, $curr;
+                      #$lhs .= ($over ? "\n" . (' ' x $over) : "<br />\n" ). $l;
+                      #$rhs .= "<br />\n$r";
+                      $table .= Tr(
+                          td($over ? span({-class=>'ind'}, (' ' x $over), $l) : $l),
+                          td($r)). "\n";
+                      next;
+                  }
+                  #default...
+                  # $lhs .= "<br />\n" . $curr;
+                  # $rhs .= "<br />\n";
+                  $table .= Tr(td($curr), td()) . "\n";
+              }
+              #say $fh table({-class=>'split'}, TR(
+              #   td({-class=>'lcast'},  general_formatting($lhs)),
+              #   td({-class=>'rlyric'}, general_formatting($rhs))
+              #));
+              #say $fh div({-class=>'split'},
+              #   p({-class=>'lcast'},  general_formatting($lhs)),
+              #   p({-class=>'rlyric'}, general_formatting($rhs))
+              #);
+              say $fh table({-class=>'split'}, $table);
+
+          }
+          else { #guess lyrics
+              #slurp until end of stanza
+              while ($lines[$i+1] =~ /\S/) { $line .= "<br />\n" . $lines[$i+1]; $i++ }
+              say $fh p({-class=>'lyrics'}, general_formatting($line));
+          }
+        next;
+        }
+
+       ## default ##
+       say $fh p({-class=>'unknown'}, general_formatting($line));
+       $contains_unknown_paragraphs{$outfilename} = 1;
+
+
+    }  #end for
+
+    print $fh end_html;
+
+    close $fh unless $use_stdout;
+    unless ($quiet_mode) {
+      say "Processed: $filename";
+      say "Title: $title_guess";
+      say "Author: $author_guess";
+    }
+
+    my $metafilename = $outfilename;
+    $metafilename =~ s/\.html$/\.meta/;
+    my $meta;
+    open $meta, ">", $metafilename;
+    say $meta $title_guess;
+    say $meta $author_guess;
+    close $meta;
+
+}
+
+sub is_centered {
+    my ($line, $lines, $i, $continuing) = @_;
+    return 0 unless $line;
+    # $continuing is the T'skaia fix
+
+    $line =~ /^(\s{2,})/;
+    my $frontspace = length($1) || 0;
+
+    return(
+        $frontspace > 0
+          # more than indent OR this is a long line in the middle of a centered block
+        and ($frontspace > 9 or $continuing && is_centered($lines->[$i+2]) )
+          # this actually looks centered                 ...ish
+        and abs($frontspace - ($columns - length $line)) <= 5 );
+}
+
+
 sub general_formatting {
-my $line = ' ' . shift . ' ';
-$line =~ s/<br \/>/~ranma~/g;
-$line = encode_entities($line, q/<>&"'/);
-$line =~ s/~ranma~/<br \/>/g; #ranma... will never appear in UF!
+    my $line = ' ' . shift . ' ';
+    $line =~ s/<br \/>/~ranma~/g;
+    $line = encode_entities($line, q/<>&"'/);
+    $line =~ s/~ranma~/<br \/>/g; #ranma... will never appear in UF!
 
-#underlining and italics
-# $line =~ s/(\W)-(\w.*?\w\W?)-(\W)/$1<i>$2<\/i>$3/g;
-$line =~ s/(\W)-(\w(?:.*?\w)??\W?)-(\W)/$1<i>$2<\/i>$3/g;
+    #underlining and italics
+    # $line =~ s/(\W)-(\w.*?\w\W?)-(\W)/$1<i>$2<\/i>$3/g;
+    $line =~ s/(\W)-(\w(?:.*?\w)??\W?)-(\W)/$1<i>$2<\/i>$3/g;
 
-$line =~ s/(\W)_(\w(?:.*?\w)?\W?)_(\W)/$1<u>$2<\/u>$3/g;
+    $line =~ s/(\W)_(\w(?:.*?\w)?\W?)_(\W)/$1<u>$2<\/u>$3/g;
 
-$line =~ s/ -(?: |\Z)/&mdash;/g;
+    $line =~ s/ -(?: |\Z)/&mdash;/g;
 
-#canonical hyperlink
-$line =~ s|(http://[^ \n<]+)|<a href="$1">$1</a>|g;
+    #canonical hyperlink
+    $line =~ s|(http://[^ \n<]+)|<a href="$1">$1</a>|g;
 
-$line = hyphenate($line) if ($hyphenation);
+    $line = hyphenate($line) if ($hyphenation);
 
-return $line;
+    return $line;
 }
 
 sub hyphenate {
@@ -315,7 +333,7 @@ sub slurp {
 #just a little function to grab a file into memory
     my $filename = shift;
     my ($f, $contents);
-    open $f, "<$filename" or die "bad filename given: $filename";
+    open($f, "<", $filename) or die "bad filename given: $filename";
 
     local $/ = undef;
     $contents = <$f>;
