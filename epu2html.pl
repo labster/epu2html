@@ -295,14 +295,14 @@ sub general_formatting {
 
     #underlining and italics
     # $line =~ s/(\W)-(\w.*?\w\W?)-(\W)/$1<i>$2<\/i>$3/g;
-    $line =~ s/(\W)-(\w(?:.*?\w)??\W?)-(\W)/$1<i>$2<\/i>$3/g;
+    $line =~ s/\W\K-(\w(?:.*?\w)??\W?)-(?=\W)/<i>$1<\/i>/g;
 
-    $line =~ s/(\W)_(\w(?:.*?\w)?\W?)_(\W)/$1<u>$2<\/u>$3/g;
+    $line =~ s/\W\K_(\w(?:.*?\w)?\W?)_(?=\W)/<u>$1<\/u>/g;
 
     $line =~ s/ -(?: |\Z)/&mdash;/g;
 
     #canonical hyperlink
-    $line =~ s|(http://[^ \n<]+)|<a href="$1">$1</a>|g;
+    $line =~ s|(https?://[^ \n<]+)|<a href="$1">$1</a>|g;
 
     $line = hyphenate($line) if ($hyphenation);
 
