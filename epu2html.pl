@@ -9,6 +9,7 @@ use feature qw/say switch/;
 use CGI qw/:standard/;   #for the html tags
 use Cwd 'abs_path';
 use File::Basename;
+use HTML::Entities qw/encode_entities/;
 
 my $can_hyphenate = 1;
 
@@ -271,7 +272,7 @@ unless ($quiet_mode) {
 sub general_formatting {
 my $line = ' ' . shift . ' ';
 $line =~ s/<br \/>/~ranma~/g;
-$line = html_escape($line);
+$line = encode_entities($line, q/<>&"'/);
 $line =~ s/~ranma~/<br \/>/g; #ranma... will never appear in UF!
 
 #underlining and italics
@@ -322,21 +323,6 @@ sub slurp {
     return $contents unless wantarray;
     return split /\n/, $contents;
 }
-
-sub html_escape {
-# Gets rid of all the HTML control characters
-# the non-URL version of escape_string above
-  BEGIN {
-     use vars '%html_escape';
-     %html_escape = ( '&'=>'&amp;',  '<'=>'&lt;', '>'=>'&gt;',
-                      "'"=>'&apos;', '"'=>'&quot;' );
-  }
-
-  my $s = shift;
-  $s =~ s/(['>&<"])/$html_escape{$1}/g;
-  return $s;
-}
-
 
 sub is_front_matter {
     my $front_rx = qr/from another time|Eyrie Productions|UNDOCUMENTED/;
